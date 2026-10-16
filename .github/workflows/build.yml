@@ -1,0 +1,112 @@
+name: Build
+
+on: [push]
+
+jobs:
+  build-linux:
+    strategy:
+      matrix:
+        arch:
+          - runner: ubuntu-22.04-arm
+            name: aarch64
+
+    name: build-linux-${{ matrix.arch.name }}
+    runs-on: ${{ matrix.arch.runner }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential autoconf automake clang cmake libtool pkg-config
+          sudo apt remove -y libssl-dev
+          aria2c https://www.openssl.org/source/openssl-1.1.1w.tar.gz
+          tar -zxvf openssl-1.1.1w.tar.gz
+          cd openssl-1.1.1w
+          if [[ $(uname -m) == "a"* && $(getconf LONG_BIT) == 64 ]]; then
+            ./Configure no-ssl3-method linux-aarch64 "-Wa,--noexecstack -fPIC"
+          else
+            ./Configure no-ssl3-method enable-ec_nistp_64_gcc_128 linux-x86_64 "-Wa,--noexecstack -fPIC"
+          fi
+          make depend -j4
+          make -j4
+          sudo make install_sw install_ssldirs
+          sudo rm -rf /usr/local/lib/libcrypto.so* /usr/local/lib/libssl.so*
+          cd ..
+
+          git clone --filter=blob:none https://github.com/libimobiledevice/libplist
+          git clone --filter=blob:none https://github.com/tihmstar/libgeneral
+          git clone --filter=blob:none https://github.com/lzfse/lzfse
+          git clone --filter=blob:none https://github.com/tihmstar/libinsn
+          git clone --filter=blob:none https://github.com/tihmstar/img3tool
+          git clone --filter=blob:none https://github.com/tihmstar/img4tool
+          git clone --filter=blob:none https://github.com/LukeZGD/libpatchfinder
+
+          cd libplist
+          ./autogen.sh --enable-static --disable-shared
+          make
+          sudo make install
+          cd ..
+
+          cd libgeneral
+          ./autogen.sh --enable-static --disable-shared
+          make
+          sudo make install
+          cd ..
+
+          cd lzfse
+          make
+          sudo make install
+          cd ..
+
+          cd libinsn
+          ./autogen.sh --enable-static --disable-shared
+          make
+          sudo make install
+          cd ..
+
+          cd img3tool
+          ./autogen.sh --enable-static --disable-shared
+          make
+          sudo make install
+          cd ..
+
+          cd img4tool
+          ./autogen.sh --enable-static --disable-shared
+          make
+          sudo make install
+          cd ..
+
+          curl -LO https://opensource.apple.com/tarballs/cctools/cctools-927.0.2.tar.gz
+          mkdir cctools-tmp
+          tar -xzf cctools-927.0.2.tar.gz -C cctools-tmp/
+          sed -i "s_#include_//_g" cctools-tmp/*cctools-927.0.2/include/mach-o/loader.h
+          sed -i -e "s=<stdint.h>=\n#include <stdint.h>\ntypedef int integer_t;\ntypedef integer_t cpu_type_t;\ntypedef integer_t cpu_subtype_t;\ntypedef integer_t cpu_threadtype_t;\ntypedef int vm_prot_t;=g" cctools-tmp/*cctools-927.0.2/include/mach-o/loader.h
+          sudo cp -r cctools-tmp/*cctools-927.0.2/include/* /usr/local/include/
+
+          cd libpatchfinder
+          ./autogen.sh --enable-static --disable-shared
+          make
+          sudo make install
+          cd ..
+
+      - name: Run cmake
+        run: ./build.sh
+
+      - name: Zip iBoot64Patcher
+        run: zip -r iBoot64Patcher_linux-${{ matrix.arch.name }}.zip cmake-build-debug/iBoot64Patcher
+
+      - name: Update latest release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload latest \
+            iBoot64Patcher_linux-${{ matrix.arch.name }}.zip \
+            --clobber -R ${{ github.repository }}
+
+          gh release edit latest \
+            --title "Latest" \
+            --target ${{ github.sha }} -R ${{ github.repository }}
