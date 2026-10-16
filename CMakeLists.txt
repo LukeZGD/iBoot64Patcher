@@ -56,8 +56,16 @@ if(NOT DEFINED NO_PKGCFG AND NOT "$ENV{NO_PKGCFG}" MATCHES "1")
 			libpatchfinder)
     target_include_directories(iBoot64Patcher PRIVATE "${DEPS_INCLUDE_DIRS}")
 	target_link_directories(iBoot64Patcher PRIVATE "${DEPS_LIBRARY_DIRS}")
-	target_link_libraries(futurerestore PRIVATE "${DEPS_LIBRARIES}"
-			"-lgeneral"
+        if("${CMAKE_HOST_SYSTEM_NAME}" MATCHES "Darwin")
+                set(compression_lib compression)
+        else()
+                set(compression_lib
+                                dl
+                                lzfse)
+        endif()
+	target_link_libraries(iBoot64Patcher PRIVATE "${DEPS_LIBRARIES}"
+			${compression_lib}
+                        "-lgeneral"
 			insn
 			plist-2.0
 			img3tool
