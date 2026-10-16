@@ -1,6 +1,8 @@
 name: Build
 
-on: [push]
+on:
+  push:
+    branches: main
 
 jobs:
   build-linux:
@@ -45,7 +47,7 @@ jobs:
           git clone --filter=blob:none https://github.com/tihmstar/libinsn
           git clone --filter=blob:none https://github.com/tihmstar/img3tool
           git clone --filter=blob:none https://github.com/tihmstar/img4tool
-          git clone --filter=blob:none https://github.com/LukeZGD/libpatchfinder
+          git clone --filter=blob:none https://github.com/LukeZGD/libpatchfinder -b pale
 
           cd libplist
           ./autogen.sh --enable-static --disable-shared
